@@ -1,0 +1,56 @@
+diff --git a/diffuser/datasets/buffer.py b/diffuser/datasets/buffer.py
+index 1ad2106..5991f01 100644
+--- a/diffuser/datasets/buffer.py
++++ b/diffuser/datasets/buffer.py
+@@ -9,7 +9,7 @@ class ReplayBuffer:
+ 
+     def __init__(self, max_n_episodes, max_path_length, termination_penalty):
+         self._dict = {
+-            'path_lengths': np.zeros(max_n_episodes, dtype=np.int),
++            'path_lengths': np.zeros(max_n_episodes, dtype=np.int_),
+         }
+         self._count = 0
+         self.max_n_episodes = max_n_episodes
+diff --git a/diffuser/environments/registration.py b/diffuser/environments/registration.py
+index 655a6f0..d5dd111 100644
+--- a/diffuser/environments/registration.py
++++ b/diffuser/environments/registration.py
+@@ -1,3 +1,5 @@
++import sys
++sys.path.append('/home/wslabtop/.local/lib/python3.8/site-packages')
+ import gym
+ 
+ ENVIRONMENT_SPECS = (
+@@ -31,4 +33,4 @@ def register_environments():
+         return gym_ids
+     except:
+         print('[ diffuser/environments/registration ] WARNING: not registering diffuser environments')
+-        return tuple()
+\ No newline at end of file
++        return tuple()
+diff --git a/environment.yml b/environment.yml
+index c14a0cf..e56b6a9 100644
+--- a/environment.yml
++++ b/environment.yml
+@@ -1,4 +1,4 @@
+-name: diffuser
++name: diffuser_2
+ channels:
+ - defaults
+ - conda-forge
+@@ -12,9 +12,7 @@ dependencies:
+     - gym==0.18.0
+     - mujoco-py==2.0.2.13
+     - matplotlib==3.3.4
+-    - torch==1.9.1+cu111
+     - typed-argument-parser
+-    - git+https://github.com/Farama-Foundation/d4rl@f2a05c0d66722499bf8031b094d9af3aea7c372b#egg=d4rl
+     - scikit-image==0.17.2
+     - scikit-video==1.1.11
+     - gitpython
+@@ -31,5 +29,4 @@ dependencies:
+     - crcmod # for fast gsutil rsync on large files
+     - google-api-python-client
+     - cryptography
+-    - git+https://github.com/JannerM/doodad.git@janner
+     - gdown>=4.6.0

@@ -1,0 +1,231 @@
+diff --git a/diffuser/datasets/buffer.py b/diffuser/datasets/buffer.py
+index 1ad2106..5991f01 100644
+--- a/diffuser/datasets/buffer.py
++++ b/diffuser/datasets/buffer.py
+@@ -9,7 +9,7 @@ class ReplayBuffer:
+ 
+     def __init__(self, max_n_episodes, max_path_length, termination_penalty):
+         self._dict = {
+-            'path_lengths': np.zeros(max_n_episodes, dtype=np.int),
++            'path_lengths': np.zeros(max_n_episodes, dtype=np.int_),
+         }
+         self._count = 0
+         self.max_n_episodes = max_n_episodes
+diff --git a/diffuser/environments/registration.py b/diffuser/environments/registration.py
+index 655a6f0..d5dd111 100644
+--- a/diffuser/environments/registration.py
++++ b/diffuser/environments/registration.py
+@@ -1,3 +1,5 @@
++import sys
++sys.path.append('/home/wslabtop/.local/lib/python3.8/site-packages')
+ import gym
+ 
+ ENVIRONMENT_SPECS = (
+@@ -31,4 +33,4 @@ def register_environments():
+         return gym_ids
+     except:
+         print('[ diffuser/environments/registration ] WARNING: not registering diffuser environments')
+-        return tuple()
+\ No newline at end of file
++        return tuple()
+diff --git a/diffuser/utils/rendering.py b/diffuser/utils/rendering.py
+index 8659ff1..d01c272 100644
+--- a/diffuser/utils/rendering.py
++++ b/diffuser/utils/rendering.py
+@@ -36,15 +36,44 @@ def env_map(env_name):
+ #------------------------------ helper functions -----------------------------#
+ #-----------------------------------------------------------------------------#
+ 
++def atmost_2d(x):
++    while x.ndim > 2:
++        x = x.squeeze(0)
++    return x
++
++def zipsafe(*args):
++    length = len(args[0])
++    assert all([len(a) == length for a in args])
++    return zip(*args)
++
++def zipkw(*args, **kwargs):
++    nargs = len(args)
++    keys = kwargs.keys()
++    vals = [kwargs[k] for k in keys]
++    zipped = zipsafe(*args, *vals)
++    for items in zipped:
++        zipped_args = items[:nargs]
++        zipped_kwargs = {k: v for k, v in zipsafe(keys, items[nargs:])}
++        yield zipped_args, zipped_kwargs
++
+ def get_image_mask(img):
+     background = (img == 255).all(axis=-1, keepdims=True)
+     mask = ~background.repeat(3, axis=-1)
+     return mask
+ 
+-def atmost_2d(x):
+-    while x.ndim > 2:
+-        x = x.squeeze(0)
+-    return x
++def plot2img(fig, remove_margins=True):
++    # https://stackoverflow.com/a/35362787/2912349
++    # https://stackoverflow.com/a/54334430/2912349
++
++    from matplotlib.backends.backend_agg import FigureCanvasAgg
++
++    if remove_margins:
++        fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
++
++    canvas = FigureCanvasAgg(fig)
++    canvas.draw()
++    img_as_string, (width, height) = canvas.print_to_buffer()
++    return np.fromstring(img_as_string, dtype='uint8').reshape((height, width, 4))
+ 
+ #-----------------------------------------------------------------------------#
+ #---------------------------------- renderers --------------------------------#
+@@ -62,6 +91,7 @@ class MuJoCoRenderer:
+         else:
+             self.env = env
+         ## - 1 because the envs in renderer are fully-observed
++        ## @TODO : clean up
+         self.observation_dim = np.prod(self.env.observation_space.shape) - 1
+         self.action_dim = np.prod(self.env.action_space.shape)
+         try:
+@@ -236,6 +266,90 @@ class MuJoCoRenderer:
+     def __call__(self, *args, **kwargs):
+         return self.renders(*args, **kwargs)
+ 
++#-----------------------------------------------------------------------------#
++#----------------------------------- maze2d ----------------------------------#
++#-----------------------------------------------------------------------------#
++
++MAZE_BOUNDS = {
++    'maze2d-umaze-v1': (0, 5, 0, 5),
++    'maze2d-medium-v1': (0, 8, 0, 8),
++    'maze2d-large-v1': (0, 9, 0, 12)
++}
++
++class MazeRenderer:
++
++    def __init__(self, env):
++        if type(env) is str: env = load_environment(env)
++        self._config = env._config
++        self._background = self._config != ' '
++        self._remove_margins = False
++        self._extent = (0, 1, 1, 0)
++
++    def renders(self, observations, conditions=None, title=None):
++        plt.clf()
++        fig = plt.gcf()
++        fig.set_size_inches(5, 5)
++        plt.imshow(self._background * .5,
++            extent=self._extent, cmap=plt.cm.binary, vmin=0, vmax=1)
++
++        path_length = len(observations)
++        colors = plt.cm.jet(np.linspace(0,1,path_length))
++        plt.plot(observations[:,1], observations[:,0], c='black', zorder=10)
++        plt.scatter(observations[:,1], observations[:,0], c=colors, zorder=20)
++        plt.axis('off')
++        plt.title(title)
++        img = plot2img(fig, remove_margins=self._remove_margins)
++        return img
++
++    def composite(self, savepath, paths, ncol=5, **kwargs):
++        '''
++            savepath : str
++            observations : [ n_paths x horizon x 2 ]
++        '''
++        assert len(paths) % ncol == 0, 'Number of paths must be divisible by number of columns'
++
++        images = []
++        for path, kw in zipkw(paths, **kwargs):
++            img = self.renders(*path, **kw)
++            images.append(img)
++        images = np.stack(images, axis=0)
++
++        nrow = len(images) // ncol
++        images = einops.rearrange(images,
++            '(nrow ncol) H W C -> (nrow H) (ncol W) C', nrow=nrow, ncol=ncol)
++        imageio.imsave(savepath, images)
++        print(f'Saved {len(paths)} samples to: {savepath}')
++
++class Maze2dRenderer(MazeRenderer):
++
++    def __init__(self, env, observation_dim=None):
++        self.env_name = env
++        self.env = load_environment(env)
++        self.observation_dim = np.prod(self.env.observation_space.shape)
++        self.action_dim = np.prod(self.env.action_space.shape)
++        self.goal = None
++        self._background = self.env.maze_arr == 10
++        self._remove_margins = False
++        self._extent = (0, 1, 1, 0)
++
++    def renders(self, observations, conditions=None, **kwargs):
++        bounds = MAZE_BOUNDS[self.env_name]
++
++        observations = observations + .5
++        if len(bounds) == 2:
++            _, scale = bounds
++            observations /= scale
++        elif len(bounds) == 4:
++            _, iscale, _, jscale = bounds
++            observations[:, 0] /= iscale
++            observations[:, 1] /= jscale
++        else:
++            raise RuntimeError(f'Unrecognized bounds for {self.env_name}: {bounds}')
++
++        if conditions is not None:
++            conditions /= scale
++        return super().renders(observations, conditions, **kwargs)
++
+ #-----------------------------------------------------------------------------#
+ #---------------------------------- rollouts ---------------------------------#
+ #-----------------------------------------------------------------------------#
+diff --git a/environment.yml b/environment.yml
+index c14a0cf..e56b6a9 100644
+--- a/environment.yml
++++ b/environment.yml
+@@ -1,4 +1,4 @@
+-name: diffuser
++name: diffuser_2
+ channels:
+ - defaults
+ - conda-forge
+@@ -12,9 +12,7 @@ dependencies:
+     - gym==0.18.0
+     - mujoco-py==2.0.2.13
+     - matplotlib==3.3.4
+-    - torch==1.9.1+cu111
+     - typed-argument-parser
+-    - git+https://github.com/Farama-Foundation/d4rl@f2a05c0d66722499bf8031b094d9af3aea7c372b#egg=d4rl
+     - scikit-image==0.17.2
+     - scikit-video==1.1.11
+     - gitpython
+@@ -31,5 +29,4 @@ dependencies:
+     - crcmod # for fast gsutil rsync on large files
+     - google-api-python-client
+     - cryptography
+-    - git+https://github.com/JannerM/doodad.git@janner
+     - gdown>=4.6.0
+diff --git a/scripts/train.py b/scripts/train.py
+index 502837e..f9646f7 100644
+--- a/scripts/train.py
++++ b/scripts/train.py
+@@ -7,7 +7,8 @@ import diffuser.utils as utils
+ 
+ class Parser(utils.Parser):
+     dataset: str = 'hopper-medium-expert-v2'
+-    config: str = 'config.locomotion'
++    #config: str = 'config.locomotion'
++    config: str = 'config.maze2d'
+ 
+ args = Parser().parse_args('diffusion')
+ 
+@@ -86,6 +87,8 @@ trainer_config = utils.Config(
+     results_folder=args.savepath,
+     bucket=args.bucket,
+     n_reference=args.n_reference,
++    n_samples=args.n_samples,
++
+ )
+ 
+ #-----------------------------------------------------------------------------#
