@@ -1,5 +1,5 @@
 import diffuser.utils as utils
-
+from gridworld_env import GridWorldEnv
 
 #-----------------------------------------------------------------------------#
 #----------------------------------- setup -----------------------------------#
@@ -20,7 +20,7 @@ args = Parser().parse_args('diffusion')
 dataset_config = utils.Config(
     args.loader,
     savepath=(args.savepath, 'dataset_config.pkl'),
-    env=args.dataset,
+    env = GridWorldEnv(grid_size=5, num_obstacles=3),
     horizon=args.horizon,
     normalizer=args.normalizer,
     preprocess_fns=args.preprocess_fns,
@@ -31,7 +31,7 @@ dataset_config = utils.Config(
 render_config = utils.Config(
     args.renderer,
     savepath=(args.savepath, 'render_config.pkl'),
-    env=args.dataset,
+    env = GridWorldEnv(grid_size=5, num_obstacles=3),
 )
 
 dataset = dataset_config()
