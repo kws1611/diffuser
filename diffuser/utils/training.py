@@ -51,6 +51,7 @@ class Trainer(object):
         save_parallel=False,
         results_folder='./results',
         n_reference=8,
+        n_samples=10,
         bucket=None,
     ):
         super().__init__()
@@ -187,7 +188,7 @@ class Trainer(object):
         savepath = os.path.join(self.logdir, f'_sample-reference.png')
         self.renderer.composite(savepath, observations)
 
-    def render_samples(self, batch_size=2, n_samples=2):
+    def render_samples(self, batch_size=2, n_samples=10):
         '''
             renders samples from (ema) diffusion model
         '''

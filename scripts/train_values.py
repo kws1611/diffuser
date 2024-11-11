@@ -8,7 +8,7 @@ import pdb
 
 class Parser(utils.Parser):
     dataset: str = 'walker2d-medium-replay-v2'
-    config: str = 'config.locomotion'
+    config: str = 'config.maze2d'
 
 args = Parser().parse_args('values')
 
@@ -39,6 +39,7 @@ render_config = utils.Config(
 )
 
 dataset = dataset_config()
+#dataset = dataset[:8000] 
 renderer = render_config()
 
 observation_dim = dataset.observation_dim

@@ -27,6 +27,8 @@ plan_args_to_watch = [
     ('conditional', 'cond'),
 ]
 
+logbase = 'logs'
+
 base = {
 
     'diffusion': {
@@ -73,6 +75,50 @@ base = {
         'n_samples': 10,
         'bucket': None,
         'device': 'cuda',
+    },
+    'values': {
+        'model': 'models.ValueFunction',
+        'diffusion': 'models.ValueDiffusion',
+        'horizon': 256,
+        'n_diffusion_steps': 256,
+        'dim_mults': (1, 4,8),
+        'renderer': 'utils.Maze2dRenderer',
+
+        ## value-specific kwargs
+        'discount': 0.99,
+        'termination_penalty': -100,
+        'normed': False,
+
+        ## dataset
+        'loader': 'datasets.ValueDataset',
+        'normalizer': 'GaussianNormalizer',
+        'preprocess_fns': [],
+        'use_padding': True,
+        'max_path_length': 10000,
+
+
+        ## serialization
+        'logbase': logbase,
+        'prefix': 'diffusion/',
+        'exp_name': watch(diffusion_args_to_watch),
+
+        ## training
+        'n_steps_per_epoch': 10000,
+        'loss_type': 'value_l2',
+        'n_train_steps': 200e3,
+        'batch_size': 32,
+        'learning_rate': 2e-4,
+        'gradient_accumulate_every': 2,
+        'ema_decay': 0.995,
+        'save_freq': 1000,
+        'sample_freq': 1000,
+        'n_saves': 50,
+        'save_parallel': False,
+        'n_reference': 50,
+        'n_samples':10,
+        'bucket': None,
+        'device': 'cuda',
+        'seed': None,
     },
 
     'plan': {
